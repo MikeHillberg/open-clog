@@ -11,15 +11,15 @@
   IgnorableNamespaces="uap rescap systemai">
 
   <Identity
-    Name="fd56f79e-320f-4cf3-9978-ced3540e630b"
-    Publisher="CN=Mike"
-    Version="1.0.0.0" />
+    Name="2775CoffeeZeit.17605A8D4C9B5"
+    Publisher="CN=1BD61FE2-F217-4D46-9A05-EE02A424756D"
+    Version="1.0.2.0" />
 
-  <mp:PhoneIdentity PhoneProductId="fd56f79e-320f-4cf3-9978-ced3540e630b" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
+  <mp:PhoneIdentity PhoneProductId="1968d136-f500-43f5-9556-8dcf1f5d2206" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
-    <DisplayName>open-clog</DisplayName>
-    <PublisherDisplayName>Mike</PublisherDisplayName>
+    <DisplayName>Open CLog</DisplayName>
+    <PublisherDisplayName>CoffeeZeit</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
@@ -37,7 +37,7 @@
       Executable="$targetnametoken$.exe"
       EntryPoint="$targetentrypoint$">
       <uap:VisualElements
-        DisplayName="open-clog"
+        DisplayName="Open CLog"
         Description="open-clog"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"

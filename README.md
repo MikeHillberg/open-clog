@@ -1,6 +1,6 @@
 # open-clog
 
-A Windows desktop app for viewing and analyzing Copilot session logs.
+A Windows desktop app for viewing and analyzing Open Claw session logs
 
 ## Projects
 
@@ -8,6 +8,3 @@ A Windows desktop app for viewing and analyzing Copilot session logs.
 - **open-clog.Core** — Core library (session log parsing)
 - **open-clog.Tests** — Unit tests
 
-## Building
-
-Open `open-clog.slnx` in Visual Studio 2022+ and build for x64.
