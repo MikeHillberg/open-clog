@@ -1,0 +1,18 @@
+<Window
+    x:Class="open_clog.JsonDetailWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="JSON Detail">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+
+    <ScrollViewer Padding="16">
+        <TextBlock x:Name="JsonText"
+                   IsTextSelectionEnabled="True"
+                   FontFamily="Cascadia Code,Consolas,Courier New"
+                   FontSize="12"
+                   TextWrapping="Wrap"/>
+    </ScrollViewer>
+</Window>

@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <!-- Workaround for VS 2026 compatibility issue with Windows App SDK -->
+    <!-- Prevent the SDK from trying to auto-detect MSVC path which fails in VS 2026 -->
+    <VCToolsInstallDir Condition="'$(VCToolsInstallDir)' == ''">.</VCToolsInstallDir>
+  </PropertyGroup>
+</Project>

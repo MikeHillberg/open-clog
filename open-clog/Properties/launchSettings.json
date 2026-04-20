@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "open-clog (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "open-clog (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
