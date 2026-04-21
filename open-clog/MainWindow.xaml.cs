@@ -49,6 +49,7 @@ public sealed partial class MainWindow : Window
     private string _agentsDir;
     private string _sessionsDir;
     private Dictionary<string, string> _sessionLabels = new();
+    private bool _suppressSelectionChanged;
 
     public MainWindow()
     {
@@ -118,10 +119,10 @@ public sealed partial class MainWindow : Window
         if (!Directory.Exists(_sessionsDir))
             return;
 
-        var files = Directory.GetFiles(_sessionsDir, "*.jsonl")
+        var files = Directory.GetFiles(_sessionsDir, "*.jsonl*")
             .Where(f => !f.EndsWith(".lock")
                      && !Path.GetFileName(f).StartsWith("sessions.json")
-                     && !f.Contains(".reset."))
+                     && !f.Contains(".checkpoint."))
             .Select(f =>
             {
                 var name = Path.GetFileName(f);
@@ -235,7 +236,9 @@ public sealed partial class MainWindow : Window
     private void RebuildMessageList()
     {
         var selectedId = (MessageList.SelectedItem as UserMessageItem)?.Id;
+        var selectedDetailOffset = (DetailList.SelectedItem as DetailLineItem)?.ByteOffset;
 
+        _suppressSelectionChanged = true;
         _messages.Clear();
 
         foreach (var iter in SessionLogParser.BuildIterations(_lineMetas))
@@ -257,9 +260,19 @@ public sealed partial class MainWindow : Window
                 MessageList.SelectedItem = match;
         }
 
+        _suppressSelectionChanged = false;
+
+        // Only auto-refresh detail list if viewing the latest turn
         if (MessageList.SelectedItem is UserMessageItem selected && _messages.Count > 0 && selected == _messages[0])
         {
             RefreshDetailList(selected);
+        }
+        else if (selectedDetailOffset.HasValue)
+        {
+            // Restore detail selection that was preserved across the rebuild
+            var detailMatch = _detailItems.FirstOrDefault(d => d.ByteOffset == selectedDetailOffset.Value);
+            if (detailMatch != null)
+                DetailList.SelectedItem = detailMatch;
         }
     }
 
@@ -314,6 +327,7 @@ public sealed partial class MainWindow : Window
 
     private void MessageList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_suppressSelectionChanged) return;
         if (MessageList.SelectedItem is UserMessageItem item)
             RefreshDetailList(item);
         else

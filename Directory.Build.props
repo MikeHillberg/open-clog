@@ -1,7 +1,8 @@
 <Project>
   <PropertyGroup>
-    <!-- Workaround for VS 2026 compatibility issue with Windows App SDK -->
-    <!-- Prevent the SDK from trying to auto-detect MSVC path which fails in VS 2026 -->
+    <!-- VS 2026 compatibility workarounds for Windows App SDK -->
     <VCToolsInstallDir Condition="'$(VCToolsInstallDir)' == ''">.</VCToolsInstallDir>
+    <GenerateSymbolPackage>false</GenerateSymbolPackage>
+    <AppxSymbolPackageEnabled>false</AppxSymbolPackageEnabled>
   </PropertyGroup>
 </Project>

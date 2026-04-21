@@ -215,7 +215,7 @@ public static class SessionLogParser
 
             string role = null;
             string contentPreview = null;
-            string toolCallPreview = null;
+            var toolCallPreviews = new List<string>();
             string thinkingPreview = null;
 
             if (root.TryGetProperty("message", out var msg))
@@ -228,7 +228,9 @@ public static class SessionLogParser
                     if (content.ValueKind == JsonValueKind.String)
                     {
                         var text = content.GetString();
-                        contentPreview = Truncate(role == "user" ? ExtractUserText(text) : text, 200);
+                        contentPreview = role == "user"
+                            ? Truncate(ExtractUserText(text), 200)
+                            : Truncate(CompactText(text), 200);
                     }
                     else if (content.ValueKind == JsonValueKind.Array)
                     {
@@ -239,13 +241,15 @@ public static class SessionLogParser
                             if (partType == "text" && part.TryGetProperty("text", out var txt))
                             {
                                 var text = txt.GetString();
-                                contentPreview = Truncate(role == "user" ? ExtractUserText(text) : text, 200);
+                                contentPreview = role == "user"
+                                    ? Truncate(ExtractUserText(text), 200)
+                                    : Truncate(CompactText(text), 200);
                             }
                             else if (partType == "tool_call" || partType == "toolCall" || partType == "tool_use")
                             {
                                 var name = part.TryGetProperty("name", out var np) ? np.GetString() : "";
                                 var args = part.TryGetProperty("arguments", out var ap) ? Truncate(ap.GetRawText(), 150) : "";
-                                toolCallPreview = $"{name}, {args}";
+                                toolCallPreviews.Add($"{name}, {args}");
                             }
                             else if (partType == "thinking" && part.TryGetProperty("text", out var thinkTxt))
                             {
@@ -271,12 +275,31 @@ public static class SessionLogParser
 
             var typeAndId = (type == "message" && role != null) ? role : type;
 
+            // For assistant messages, append content types in parens
+            if (role == "assistant" && root.TryGetProperty("message", out var msgForTypes)
+                && msgForTypes.TryGetProperty("content", out var contentForTypes)
+                && contentForTypes.ValueKind == JsonValueKind.Array)
+            {
+                var contentTypes = new List<string>();
+                foreach (var part in contentForTypes.EnumerateArray())
+                {
+                    if (part.TryGetProperty("type", out var pt))
+                    {
+                        var t = pt.GetString();
+                        if (t != null && !contentTypes.Contains(t))
+                            contentTypes.Add(t);
+                    }
+                }
+                if (contentTypes.Count > 0)
+                    typeAndId += " (" + string.Join(", ", contentTypes) + ")";
+            }
+
             return new DetailInfo
             {
                 TypeAndId = typeAndId,
                 Role = role,
                 ContentPreview = contentPreview,
-                ToolCallPreview = toolCallPreview,
+                ToolCallPreview = toolCallPreviews.Count > 0 ? string.Join("\n", toolCallPreviews) : null,
                 ThinkingPreview = thinkingPreview,
                 TokenIn = tokenIn,
                 TokenCacheRead = tokenCacheRead,
@@ -290,6 +313,16 @@ public static class SessionLogParser
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Compact text by trimming, collapsing whitespace/newlines into single spaces.
+    /// Useful for tool result previews.
+    /// </summary>
+    public static string CompactText(string s)
+    {
+        if (s == null) return null;
+        return System.Text.RegularExpressions.Regex.Replace(s.Trim(), @"\s+", " ");
     }
 
     /// <summary>
@@ -336,10 +369,33 @@ public static class SessionLogParser
         {
             var remainder = text.Substring(lastFenceEnd).TrimStart('\r', '\n');
             if (remainder.Length > 0)
-                return remainder;
+                return StripSystemPrefix(StripDatePrefix(remainder));
         }
 
-        return text;
+        return StripSystemPrefix(StripDatePrefix(text));
+    }
+
+    /// <summary>
+    /// Strip a leading date prefix like "[Mon 2026-04-20 08:13 PDT] " from user messages.
+    /// </summary>
+    public static string StripDatePrefix(string text)
+    {
+        if (text == null || text.Length < 2 || text[0] != '[') return text;
+        // Pattern: [Day YYYY-MM-DD HH:MM TZ]
+        var match = System.Text.RegularExpressions.Regex.Match(
+            text, @"^\[\w{3}\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\s+\w+\]\s*");
+        return match.Success ? text.Substring(match.Length) : text;
+    }
+
+    /// <summary>
+    /// Strip a leading "System (untrusted): [datetime] " prefix from messages.
+    /// </summary>
+    public static string StripSystemPrefix(string text)
+    {
+        if (text == null) return null;
+        var match = System.Text.RegularExpressions.Regex.Match(
+            text, @"^System\s+\(untrusted\):\s*\[[^\]]+\]\s*");
+        return match.Success ? text.Substring(match.Length) : text;
     }
 
     /// <summary>
@@ -362,7 +418,7 @@ public static class SessionLogParser
             var local = dto.ToLocalTime();
             var today = (now ?? DateTimeOffset.Now).Date;
             if (local.Date == today)
-                return local.ToString("t");
+                return local.ToString("t").ToLower();
             else
                 return local.ToString("t") + ", " + FormatShortDate(local);
         }

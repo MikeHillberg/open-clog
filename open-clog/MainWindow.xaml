@@ -28,13 +28,19 @@
                  IsClosable="False"/>
 
         <!-- Agent and session selectors -->
-        <StackPanel Orientation="Horizontal" Grid.Row="1" Margin="12,8" Spacing="8">
-            <ComboBox x:Name="AgentCombo" FontSize="14" FontWeight="SemiBold"
-                      SelectionChanged="AgentCombo_SelectionChanged"
-                      MinWidth="150"/>
-            <ComboBox x:Name="SessionCombo" FontSize="14" FontWeight="SemiBold"
-                      SelectionChanged="SessionCombo_SelectionChanged"
-                      MinWidth="300"/>
+        <StackPanel Orientation="Horizontal" Grid.Row="1" Margin="12,8" Spacing="16">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Agent:" VerticalAlignment="Center" FontSize="13" Foreground="Gray"/>
+                <ComboBox x:Name="AgentCombo" FontSize="14" FontWeight="SemiBold"
+                          SelectionChanged="AgentCombo_SelectionChanged"
+                          MinWidth="150"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Session:" VerticalAlignment="Center" FontSize="13" Foreground="Gray"/>
+                <ComboBox x:Name="SessionCombo" FontSize="14" FontWeight="SemiBold"
+                          SelectionChanged="SessionCombo_SelectionChanged"
+                          MinWidth="300"/>
+            </StackPanel>
         </StackPanel>
 
         <Grid Grid.Row="2">
@@ -110,7 +116,7 @@
                                 <TextBlock Text="{x:Bind ToolCallPreview}"
                                            FontSize="11" Foreground="CornflowerBlue"
                                            TextTrimming="CharacterEllipsis"
-                                           MaxLines="2"
+                                           MaxLines="10"
                                            Visibility="{x:Bind HasToolCall}"/>
                                 <TextBlock Text="{x:Bind ThinkingPreview}"
                                            FontSize="11" Foreground="MediumPurple"

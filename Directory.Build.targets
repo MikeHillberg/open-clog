@@ -1,0 +1,5 @@
+<Project>
+  <!-- VS 2026 compatibility: Override broken symbol/store packaging targets -->
+  <Target Name="WinAppSdkGenerateAppxSymbolPackage" />
+  <Target Name="WinAppSdkCreateAppStoreContainer" />
+</Project>

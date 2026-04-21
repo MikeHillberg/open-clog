@@ -230,6 +230,71 @@ public class SessionLogParserTests
         Assert.AreEqual(partial, leftover);
     }
 
+
+    [TestMethod]
+    public void StripDatePrefix_RemovesPrefix()
+    {
+        var input = "[Mon 2026-04-20 08:13 PDT] what's the weather in seattle wa";
+        var result = SessionLogParser.StripDatePrefix(input);
+        Assert.AreEqual("what's the weather in seattle wa", result);
+    }
+
+    [TestMethod]
+    public void StripDatePrefix_NoPrefix_ReturnsOriginal()
+    {
+        var input = "just a normal message";
+        Assert.AreEqual(input, SessionLogParser.StripDatePrefix(input));
+    }
+
+    [TestMethod]
+    public void StripDatePrefix_Null_ReturnsNull()
+    {
+        Assert.IsNull(SessionLogParser.StripDatePrefix(null));
+    }
+
+    [TestMethod]
+    public void ExtractUserText_StripsDatePrefixAfterFences()
+    {
+        var input = "Sender:\n```json\n{\"name\": \"Mike\"}\n```\n\n[Tue 2026-04-15 10:00 PDT] hello world";
+        var result = SessionLogParser.ExtractUserText(input);
+        Assert.AreEqual("hello world", result);
+    }
+
+    [TestMethod]
+    public void ExtractUserText_StripsDatePrefixWithoutFences()
+    {
+        var input = "[Mon 2026-04-20 08:13 PDT] what's the weather";
+        var result = SessionLogParser.ExtractUserText(input);
+        Assert.AreEqual("what's the weather", result);
+    }
+
+    [TestMethod]
+    public void ParseDetails_MultipleToolCalls()
+    {
+        var json = "{\"type\":\"message\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"name\":\"memory_search\",\"arguments\":{\"query\":\"test\"}},{\"type\":\"toolCall\",\"name\":\"read\",\"arguments\":{\"path\":\"foo.txt\"}}]}}";
+        var buffer = Encoding.UTF8.GetBytes(json);
+        var details = SessionLogParser.ParseDetails(buffer, 0);
+
+        Assert.AreEqual(1, details.Count);
+        Assert.IsNotNull(details[0].ToolCallPreview);
+        // Should contain both tool calls
+        Assert.IsTrue(details[0].ToolCallPreview.Contains("memory_search"), "Should contain memory_search");
+        Assert.IsTrue(details[0].ToolCallPreview.Contains("read"), "Should contain read");
+        // Should be on separate lines
+        Assert.IsTrue(details[0].ToolCallPreview.Contains("\n"), "Should have newline between tool calls");
+    }
+
+    [TestMethod]
+    public void ParseDetails_SingleToolCall_NoNewline()
+    {
+        var json = "{\"type\":\"message\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"name\":\"exec\",\"arguments\":{\"cmd\":\"ls\"}}]}}";
+        var buffer = Encoding.UTF8.GetBytes(json);
+        var details = SessionLogParser.ParseDetails(buffer, 0);
+
+        Assert.AreEqual(1, details.Count);
+        Assert.IsTrue(details[0].ToolCallPreview.StartsWith("exec,"));
+        Assert.IsFalse(details[0].ToolCallPreview.Contains("\n"), "Single tool call should not have newline");
+    }
     [TestMethod]
     public void ParseIncrementalBytes_CompletesLeftover()
     {
@@ -246,5 +311,58 @@ public class SessionLogParserTests
         Assert.AreEqual(1, newLines.Count);
         Assert.IsTrue(newLines[0].IsUserMessage);
         Assert.AreEqual("", leftover);
+    }
+
+    [TestMethod]
+    public void CompactText_CollapsesWhitespace()
+    {
+        var input = "  ---\nname: weather\ndescription: \"Get current weather\"\nhomepage: https://wttr.in  ";
+        var result = SessionLogParser.CompactText(input);
+        Assert.AreEqual("--- name: weather description: \"Get current weather\" homepage: https://wttr.in", result);
+    }
+
+    [TestMethod]
+    public void CompactText_Null_ReturnsNull()
+    {
+        Assert.IsNull(SessionLogParser.CompactText(null));
+    }
+
+    [TestMethod]
+    public void ParseDetails_ToolResultCompacted()
+    {
+        var json = "{\"type\":\"message\",\"message\":{\"role\":\"tool\",\"content\":[{\"type\":\"text\",\"text\":\"  line1\\nline2\\n  line3  \"}]}}";
+        var buffer = Encoding.UTF8.GetBytes(json);
+        var details = SessionLogParser.ParseDetails(buffer, 0);
+
+        Assert.AreEqual(1, details.Count);
+        Assert.AreEqual("line1 line2 line3", details[0].ContentPreview);
+    }
+
+    [TestMethod]
+    public void StripSystemPrefix_RemovesPrefix()
+    {
+        var input = "System (untrusted): [2026-04-20 10:49:03 PDT] Exec completed (plaid-mi, code 0)";
+        var result = SessionLogParser.StripSystemPrefix(input);
+        Assert.AreEqual("Exec completed (plaid-mi, code 0)", result);
+    }
+
+    [TestMethod]
+    public void StripSystemPrefix_NoPrefix_ReturnsOriginal()
+    {
+        Assert.AreEqual("hello", SessionLogParser.StripSystemPrefix("hello"));
+    }
+
+    [TestMethod]
+    public void StripSystemPrefix_Null_ReturnsNull()
+    {
+        Assert.IsNull(SessionLogParser.StripSystemPrefix(null));
+    }
+
+    [TestMethod]
+    public void ExtractUserText_StripsSystemPrefix()
+    {
+        var input = "System (untrusted): [2026-04-20 10:49:03 PDT] Exec completed";
+        var result = SessionLogParser.ExtractUserText(input);
+        Assert.AreEqual("Exec completed", result);
     }
 }
