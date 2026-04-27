@@ -275,6 +275,26 @@ public static class SessionLogParser
 
             var typeAndId = (type == "message" && role != null) ? role : type;
 
+                        // For toolResult, append toolName and status from details
+                        if (role == "toolResult")
+                        {
+                            var toolName = root.TryGetProperty("message", out var msgForTool)
+                                && msgForTool.TryGetProperty("toolName", out var tn) ? tn.GetString() : null;
+                            var status = "";
+                            if (root.TryGetProperty("message", out var msgForDetails)
+                                && msgForDetails.TryGetProperty("details", out var details))
+                            {
+                                var exitCode = details.TryGetProperty("exitCode", out var ec) ? ec.GetInt32().ToString() : null;
+                                var durationMs = details.TryGetProperty("durationMs", out var dm) ? dm.GetInt64() : 0;
+                                var duration = durationMs > 0 ? $"{durationMs}ms" : null;
+                                var parts = new List<string>();
+                                if (exitCode != null) parts.Add($"exit {exitCode}");
+                                if (duration != null) parts.Add(duration);
+                                if (parts.Count > 0) status = " (" + string.Join(", ", parts) + ")";
+                            }
+                            typeAndId = toolName != null ? $"toolResult: {toolName}{status}" : $"toolResult{status}";
+                        }
+
             // For assistant messages, append content types in parens
             if (role == "assistant" && root.TryGetProperty("message", out var msgForTypes)
                 && msgForTypes.TryGetProperty("content", out var contentForTypes)
@@ -420,7 +440,7 @@ public static class SessionLogParser
             if (local.Date == today)
                 return local.ToString("t").ToLower();
             else
-                return local.ToString("t") + ", " + FormatShortDate(local);
+                return local.ToString("t").ToLower() + ", " + FormatShortDate(local);
         }
         return iso ?? "";
     }

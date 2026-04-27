@@ -29,6 +29,12 @@
 
         <!-- Agent and session selectors -->
         <StackPanel Orientation="Horizontal" Grid.Row="1" Margin="12,8" Spacing="16">
+            <ToggleButton x:Name="AutoScrollToggle" IsChecked="True"
+                              ToolTipService.ToolTip="Enable for auto-scroll, where the latest turn and latest turn message are always selected. This will automatically be disabled if you click an older turn or message"
+                              Click="AutoScrollToggle_Click"
+                              VerticalAlignment="Center">
+                <SymbolIcon Symbol="Play"/>
+            </ToggleButton>
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="Agent:" VerticalAlignment="Center" FontSize="13" Foreground="Gray"/>
                 <ComboBox x:Name="AgentCombo" FontSize="14" FontWeight="SemiBold"
@@ -44,110 +50,123 @@
         </StackPanel>
 
         <Grid Grid.Row="2">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="350" MinWidth="200"/>
-            <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="350" MinWidth="150"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-        <!-- Iterations list -->
-        <Grid Grid.Column="0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-            <TextBlock Text="Turns (most recent on top)" Grid.Row="0" Padding="12,4" FontSize="12" FontWeight="SemiBold" Foreground="Gray"/>
-            <ListView x:Name="MessageList"
-                      Grid.Row="1"
-                      SelectionChanged="MessageList_SelectionChanged"
-                      Padding="8">
-                <ListView.ItemTemplate>
-                    <DataTemplate x:DataType="local:UserMessageItem">
-                        <StackPanel Padding="4">
-                            <TextBlock Text="{x:Bind Timestamp}" />
-                            <TextBlock Text="{x:Bind Preview}" FontSize="11" Foreground="Gray"
-                                       TextTrimming="CharacterEllipsis" MaxLines="1"/>
-                        </StackPanel>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-        </Grid>
-
-        <Border Grid.Column="1" Width="1" Background="Gray" Opacity="0.3"/>
-
-        <!-- Detail pane: top list + bottom JSON -->
-        <Grid Grid.Column="2">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-
-            <!-- Header row with Messages label and token column headers -->
-            <Grid Grid.Row="0" Padding="12,4,20,4">
-                <TextBlock Text="Messages" FontSize="12" FontWeight="SemiBold" Foreground="Gray"
-                           VerticalAlignment="Center"/>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="0">
-                    <TextBlock Text="tokens:" FontSize="10" Foreground="Gray" Margin="0,0,4,0"/><TextBlock Text="in" FontSize="10" Foreground="Gray" Width="60" TextAlignment="Right"/>
-                    <TextBlock Text="cache rd" FontSize="10" Foreground="Gray" Width="65" TextAlignment="Right"/>
-                    <TextBlock Text="cache wr" FontSize="10" Foreground="Gray" Width="65" TextAlignment="Right"/>
-                    <TextBlock Text="out" FontSize="10" Foreground="Gray" Width="60" TextAlignment="Right"/>
-                </StackPanel>
+            <!-- Turns list -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Text="Turns (most recent on top)" Grid.Row="0" Padding="12,4" FontSize="12" FontWeight="SemiBold" Foreground="Gray"/>
+                <ListView x:Name="MessageList"
+                          Grid.Row="1"
+                          SelectionChanged="MessageList_SelectionChanged"
+                          Padding="8">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="local:UserMessageItem">
+                            <StackPanel Padding="4">
+                                <TextBlock Text="{x:Bind Timestamp}" />
+                                <TextBlock Text="{x:Bind Preview}" FontSize="11" Foreground="Gray"
+                                           TextTrimming="CharacterEllipsis" MaxLines="1"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
             </Grid>
 
-            <!-- Top: subtree entry list -->
-            <ListView x:Name="DetailList"
-                      Grid.Row="1"
-                      Padding="8"
-                      SelectionChanged="DetailList_SelectionChanged"
-                      DoubleTapped="DetailList_DoubleTapped">
-                <ListView.ItemTemplate>
-                    <DataTemplate x:DataType="local:DetailLineItem">
-                        <Border Background="{x:Bind RowBackground}" Padding="4" CornerRadius="4">
-                        <Grid>
-                            <StackPanel>
-                                <TextBlock FontSize="12" Text="{x:Bind TypeAndId}"/>
-                                <TextBlock Text="{x:Bind ContentPreview}"
-                                           FontSize="11"
-                                           TextTrimming="CharacterEllipsis"
-                                           MaxLines="3"
-                                           Visibility="{x:Bind HasContent}"/>
-                                <TextBlock Text="{x:Bind ToolCallPreview}"
-                                           FontSize="11" Foreground="CornflowerBlue"
-                                           TextTrimming="CharacterEllipsis"
-                                           MaxLines="10"
-                                           Visibility="{x:Bind HasToolCall}"/>
-                                <TextBlock Text="{x:Bind ThinkingPreview}"
-                                           FontSize="11" Foreground="MediumPurple"
-                                           FontStyle="Italic"
-                                           TextTrimming="CharacterEllipsis"
-                                           MaxLines="2"
-                                           Visibility="{x:Bind HasThinking}"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Spacing="0">
-                                <TextBlock Text="{x:Bind TokenIn}" FontSize="11" Width="60" TextAlignment="Right" Foreground="Gray"/>
-                                <TextBlock Text="{x:Bind TokenCacheRead}" FontSize="11" Width="65" TextAlignment="Right" Foreground="Gray"/>
-                                <TextBlock Text="{x:Bind TokenCacheWrite}" FontSize="11" Width="65" TextAlignment="Right" Foreground="Gray"/>
-                                <TextBlock Text="{x:Bind TokenOut}" FontSize="11" Width="60" TextAlignment="Right" Foreground="Gray"/>
-                            </StackPanel>
-                        </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
+            <!-- Vertical splitter (drag to resize turns list) -->
+            <local:GridSplitterEx x:Name="VerticalSplitter" Grid.Column="0" Width="6" HorizontalAlignment="Right"/>
 
-            <Border Grid.Row="2" Height="1" Background="Gray" Opacity="0.3"/>
+            <!-- Detail pane: top list + bottom JSON -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-            <!-- Bottom: full JSON of selected detail item -->
-            <ScrollViewer Grid.Row="3" Padding="12">
-                <TextBlock x:Name="DetailJsonText"
-                           IsTextSelectionEnabled="True"
-                           FontFamily="Cascadia Code,Consolas,Courier New"
-                           FontSize="12"
-                           TextWrapping="Wrap"/>
-            </ScrollViewer>
+                <!-- Header row with Messages label and token column headers -->
+                <Grid Grid.Row="0" Padding="12,4,20,4">
+                    <TextBlock Text="Messages" FontSize="12" FontWeight="SemiBold" Foreground="Gray"
+                               VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="0">
+                        <TextBlock Text="tokens:" FontSize="10" Foreground="Gray" Margin="0,0,4,0"/>
+                        <TextBlock Text="in" FontSize="10" Foreground="Gray" Width="60" TextAlignment="Right"/>
+                        <TextBlock Text="cache rd" FontSize="10" Foreground="Gray" Width="65" TextAlignment="Right"/>
+                        <TextBlock Text="cache wr" FontSize="10" Foreground="Gray" Width="65" TextAlignment="Right"/>
+                        <TextBlock Text="out" FontSize="10" Foreground="Gray" Width="60" TextAlignment="Right"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Placeholder when no turn selected -->
+                <TextBlock x:Name="NoTurnSelected" Grid.Row="1" 
+                           Text="Select a turn to see turn messages"
+                           FontStyle="Italic" Foreground="Gray" FontSize="13"
+                           Padding="16,12" Visibility="Visible"/>
+
+                <!-- Top: subtree entry list -->
+                <ListView x:Name="DetailList"
+                          Grid.Row="1"
+                          Padding="8"
+                          SelectionChanged="DetailList_SelectionChanged"
+                          DoubleTapped="DetailList_DoubleTapped">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="local:DetailLineItem">
+                            <Border Background="{x:Bind RowBackground}" Padding="4" CornerRadius="4">
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock FontSize="12" Text="{x:Bind TypeAndId}"/>
+                                    <TextBlock Text="{x:Bind ContentPreview}"
+                                               FontSize="11"
+                                               TextTrimming="CharacterEllipsis"
+                                               MaxLines="3"
+                                               Visibility="{x:Bind HasContent}"/>
+                                    <TextBlock Text="{x:Bind ToolCallPreview}"
+                                               FontSize="11" Foreground="CornflowerBlue"
+                                               TextTrimming="CharacterEllipsis"
+                                               MaxLines="10"
+                                               Visibility="{x:Bind HasToolCall}"/>
+                                    <TextBlock Text="{x:Bind ThinkingPreview}"
+                                               FontSize="11" Foreground="MediumPurple"
+                                               FontStyle="Italic"
+                                               TextTrimming="CharacterEllipsis"
+                                               MaxLines="2"
+                                               Visibility="{x:Bind HasThinking}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Spacing="0">
+                                    <TextBlock Text="{x:Bind TokenIn}" FontSize="11" Width="60" TextAlignment="Right" Foreground="Gray"/>
+                                    <TextBlock Text="{x:Bind TokenCacheRead}" FontSize="11" Width="65" TextAlignment="Right" Foreground="Gray"/>
+                                    <TextBlock Text="{x:Bind TokenCacheWrite}" FontSize="11" Width="65" TextAlignment="Right" Foreground="Gray"/>
+                                    <TextBlock Text="{x:Bind TokenOut}" FontSize="11" Width="60" TextAlignment="Right" Foreground="Gray"/>
+                                </StackPanel>
+                            </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                <!-- Placeholder when no message selected -->
+                <TextBlock x:Name="NoMessageSelected" Grid.Row="2"
+                           Text="Select a message to see message detail"
+                           FontStyle="Italic" Foreground="Gray" FontSize="13"
+                           Padding="16,12" Visibility="Visible"/>
+
+                <!-- Bottom: full JSON of selected detail item -->
+                <ScrollViewer x:Name="DetailJsonScroller" Grid.Row="2" Padding="12">
+                    <TextBlock x:Name="DetailJsonText"
+                               IsTextSelectionEnabled="True"
+                               FontFamily="Cascadia Code,Consolas,Courier New"
+                               FontSize="12"
+                               TextWrapping="Wrap"/>
+                </ScrollViewer>
+
+                <!-- Horizontal splitter (drag to resize JSON pane) -->
+                <local:GridSplitterEx x:Name="HorizontalSplitter" Grid.Row="2" Height="6" VerticalAlignment="Top"/>
+            </Grid>
         </Grid>
-    </Grid>
     </Grid>
 </Window>

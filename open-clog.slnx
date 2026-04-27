@@ -4,6 +4,9 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+  </Folder>
   <Project Path="open-clog.Core/open-clog.Core.csproj">
     <Platform Solution="*|x64" Project="x64" />
     <Platform Solution="Release|ARM64" Project="ARM64" />

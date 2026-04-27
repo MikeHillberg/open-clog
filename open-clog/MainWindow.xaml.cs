@@ -50,10 +50,12 @@ public sealed partial class MainWindow : Window
     private string _sessionsDir;
     private Dictionary<string, string> _sessionLabels = new();
     private bool _suppressSelectionChanged;
+    private bool _autoScroll = true;
 
     public MainWindow()
     {
         this.InitializeComponent();
+        VerticalSplitter.InvertDirection = false;
         this.AppWindow.SetIcon(Path.Combine(Windows.ApplicationModel.Package.Current.InstalledLocation.Path, "Assets", "open-toed-clog.ico"));
         MessageList.ItemsSource = _messages;
         DetailList.ItemsSource = _detailItems;
@@ -71,7 +73,7 @@ public sealed partial class MainWindow : Window
         if (Directory.Exists(_agentsDir))
         {
             agents = Directory.GetDirectories(_agentsDir)
-                .Where(d => Directory.Exists(Path.Combine(d, "sessions")))
+                .Where(d => Directory.Exists(Path.Combine(d, "sessions")) && Directory.GetFiles(Path.Combine(d, "sessions"), "*.jsonl*").Any(f => !f.EndsWith(".lock") && !Path.GetFileName(f).StartsWith("sessions.json")))
                 .Select(Path.GetFileName)
                 .OrderBy(n => n == "main" ? 0 : 1)
                 .ThenBy(n => n)
@@ -138,6 +140,7 @@ public sealed partial class MainWindow : Window
             .Select(x => x.Item)
             .ToList();
 
+        SessionCombo.SelectedIndex = -1;
         SessionCombo.ItemsSource = files;
         if (files.Count > 0)
             SessionCombo.SelectedIndex = 0;
@@ -151,6 +154,16 @@ public sealed partial class MainWindow : Window
             StopWatching();
             LoadSessionFile(fullPath);
             StartWatching(fullPath);
+        }
+        else
+        {
+            // No session selected — clear everything
+            StopWatching();
+            _messages.Clear();
+            _detailItems.Clear();
+            _lineMetas.Clear();
+            _currentFilePath = null;
+            DetailJsonText.Text = "";
         }
     }
 
@@ -262,8 +275,14 @@ public sealed partial class MainWindow : Window
 
         _suppressSelectionChanged = false;
 
+        if (_autoScroll && _messages.Count > 0)
+        {
+            // Force select latest turn and refresh its details
+            MessageList.SelectedItem = _messages[0];
+            RefreshDetailList(_messages[0]);
+        }
         // Only auto-refresh detail list if viewing the latest turn
-        if (MessageList.SelectedItem is UserMessageItem selected && _messages.Count > 0 && selected == _messages[0])
+        else if (MessageList.SelectedItem is UserMessageItem selected && _messages.Count > 0 && selected == _messages[0])
         {
             RefreshDetailList(selected);
         }
@@ -317,7 +336,11 @@ public sealed partial class MainWindow : Window
         }
 
         // Restore detail selection
-        if (selectedOffset.HasValue)
+        if (_autoScroll && _detailItems.Count > 0)
+        {
+            DetailList.SelectedItem = _detailItems[0];
+        }
+        else if (selectedOffset.HasValue)
         {
             var match = _detailItems.FirstOrDefault(d => d.ByteOffset == selectedOffset.Value);
             if (match != null)
@@ -325,13 +348,52 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void AutoScrollToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _autoScroll = AutoScrollToggle.IsChecked == true;
+        if (_autoScroll)
+            ApplyAutoScroll();
+    }
+
+    private void ApplyAutoScroll()
+    {
+        if (_messages.Count > 0 && MessageList.SelectedItem != _messages[0])
+        {
+            MessageList.SelectedItem = _messages[0];
+        }
+        if (_detailItems.Count > 0 && DetailList.SelectedItem != _detailItems[0])
+        {
+            DetailList.SelectedItem = _detailItems[0];
+        }
+    }
+
     private void MessageList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_suppressSelectionChanged) return;
+
+        // If user manually selects a non-latest turn, disable auto-scroll
+        if (_autoScroll && MessageList.SelectedItem is UserMessageItem sel
+            && _messages.Count > 0 && sel != _messages[0])
+        {
+            _autoScroll = false;
+            AutoScrollToggle.IsChecked = false;
+        }
+
         if (MessageList.SelectedItem is UserMessageItem item)
+        {
+            NoTurnSelected.Visibility = Visibility.Collapsed;
+            DetailList.Visibility = Visibility.Visible;
             RefreshDetailList(item);
+        }
         else
+        {
             _detailItems.Clear();
+            DetailList.Visibility = Visibility.Collapsed;
+            NoTurnSelected.Visibility = Visibility.Visible;
+            DetailJsonText.Text = "";
+            DetailJsonScroller.Visibility = Visibility.Collapsed;
+            NoMessageSelected.Visibility = Visibility.Visible;
+        }
     }
 
     private void DetailList_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
@@ -346,10 +408,26 @@ public sealed partial class MainWindow : Window
 
     private void DetailList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        // If user manually selects a non-latest message, disable auto-scroll
+        if (_autoScroll && DetailList.SelectedItem is DetailLineItem sel
+            && _detailItems.Count > 0 && sel != _detailItems[0])
+        {
+            _autoScroll = false;
+            AutoScrollToggle.IsChecked = false;
+        }
+
         if (DetailList.SelectedItem is DetailLineItem item && item.ByteLength > 0)
+        {
             DetailJsonText.Text = LoadPrettyJson(item);
+            DetailJsonScroller.Visibility = Visibility.Visible;
+            NoMessageSelected.Visibility = Visibility.Collapsed;
+        }
         else
+        {
             DetailJsonText.Text = "";
+            DetailJsonScroller.Visibility = Visibility.Collapsed;
+            NoMessageSelected.Visibility = Visibility.Visible;
+        }
     }
 
     private string LoadPrettyJson(DetailLineItem item)
