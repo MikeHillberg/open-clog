@@ -216,7 +216,6 @@ public static class SessionLogParser
             string role = null;
             string contentPreview = null;
             var toolCallPreviews = new List<string>();
-            string thinkingPreview = null;
 
             if (root.TryGetProperty("message", out var msg))
             {
@@ -234,6 +233,7 @@ public static class SessionLogParser
                     }
                     else if (content.ValueKind == JsonValueKind.Array)
                     {
+                        var contentParts = new List<string>();
                         foreach (var part in content.EnumerateArray())
                         {
                             var partType = part.TryGetProperty("type", out var ptv) ? ptv.GetString() : null;
@@ -241,9 +241,11 @@ public static class SessionLogParser
                             if (partType == "text" && part.TryGetProperty("text", out var txt))
                             {
                                 var text = txt.GetString();
-                                contentPreview = role == "user"
+                                var preview = role == "user"
                                     ? Truncate(ExtractUserText(text), 200)
                                     : Truncate(CompactText(text), 200);
+                                if (!string.IsNullOrEmpty(preview))
+                                    contentParts.Add(preview);
                             }
                             else if (partType == "tool_call" || partType == "toolCall" || partType == "tool_use")
                             {
@@ -251,11 +253,24 @@ public static class SessionLogParser
                                 var args = part.TryGetProperty("arguments", out var ap) ? Truncate(ap.GetRawText(), 150) : "";
                                 toolCallPreviews.Add($"{name}, {args}");
                             }
-                            else if (partType == "thinking" && part.TryGetProperty("text", out var thinkTxt))
+                            else if (partType == "thinking")
                             {
-                                thinkingPreview = Truncate(thinkTxt.GetString(), 150);
+                                if (part.TryGetProperty("thinking", out var thinkTxt))
+                                {
+                                    var t = Truncate(thinkTxt.GetString(), 150);
+                                    if (!string.IsNullOrEmpty(t))
+                                        contentParts.Add(t);
+                                }
+                                if (part.TryGetProperty("text", out var thinkText))
+                                {
+                                    var t = Truncate(thinkText.GetString(), 150);
+                                    if (!string.IsNullOrEmpty(t))
+                                        contentParts.Add(t);
+                                }
                             }
                         }
+                        if (contentParts.Count > 0)
+                            contentPreview = string.Join("\n", contentParts);
                     }
                 }
             }
@@ -320,7 +335,7 @@ public static class SessionLogParser
                 Role = role,
                 ContentPreview = contentPreview,
                 ToolCallPreview = toolCallPreviews.Count > 0 ? string.Join("\n", toolCallPreviews) : null,
-                ThinkingPreview = thinkingPreview,
+                ThinkingPreview = null,
                 TokenIn = tokenIn,
                 TokenCacheRead = tokenCacheRead,
                 TokenCacheWrite = tokenCacheWrite,

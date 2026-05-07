@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Documents;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -7,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using Windows.Storage.Pickers;
 
 namespace open_clog;
 
@@ -124,7 +126,9 @@ public sealed partial class MainWindow : Window
         var files = Directory.GetFiles(_sessionsDir, "*.jsonl*")
             .Where(f => !f.EndsWith(".lock")
                      && !Path.GetFileName(f).StartsWith("sessions.json")
-                     && !f.Contains(".checkpoint."))
+                     && !f.Contains(".checkpoint.")
+                     && !f.EndsWith(".trajectory.jsonl")
+                     && !f.Contains(".reset."))
             .Select(f =>
             {
                 var name = Path.GetFileName(f);
@@ -151,6 +155,7 @@ public sealed partial class MainWindow : Window
         if (SessionCombo.SelectedItem is SessionFileItem item)
         {
             var fullPath = Path.Combine(_sessionsDir, item.FileName);
+            SessionIdText.Text = Path.GetFileNameWithoutExtension(item.FileName);
             StopWatching();
             LoadSessionFile(fullPath);
             StartWatching(fullPath);
@@ -158,6 +163,7 @@ public sealed partial class MainWindow : Window
         else
         {
             // No session selected — clear everything
+            SessionIdText.Text = "";
             StopWatching();
             _messages.Clear();
             _detailItems.Clear();
@@ -254,8 +260,11 @@ public sealed partial class MainWindow : Window
         _suppressSelectionChanged = true;
         _messages.Clear();
 
+        string firstTimestamp = null, lastTimestamp = null;
         foreach (var iter in SessionLogParser.BuildIterations(_lineMetas))
         {
+            if (firstTimestamp == null) firstTimestamp = iter.Timestamp;
+            lastTimestamp = iter.Timestamp;
             _messages.Add(new UserMessageItem
             {
                 Id = iter.Id,
@@ -265,6 +274,8 @@ public sealed partial class MainWindow : Window
                 SubtreeLength = iter.SubtreeLength
             });
         }
+
+        UpdateMessagesHeader(null);
 
         if (selectedId != null)
         {
@@ -293,6 +304,50 @@ public sealed partial class MainWindow : Window
             if (detailMatch != null)
                 DetailList.SelectedItem = detailMatch;
         }
+    }
+
+    private void UpdateMessagesHeader(UserMessageItem selectedItem)
+    {
+        var count = _messages.Count;
+        if (count == 0)
+        {
+            MessagesHeader.Text = "Messages";
+            return;
+        }
+
+        if (selectedItem != null)
+        {
+            var rangeStart = selectedItem.SubtreeOffset;
+            var rangeEnd = rangeStart + selectedItem.SubtreeLength;
+            string firstTs = null, lastTs = null;
+            foreach (var lm in _lineMetas)
+            {
+                if (lm.Offset >= rangeStart && lm.Offset < rangeEnd && lm.Timestamp != null)
+                {
+                    if (firstTs == null) firstTs = lm.Timestamp;
+                    lastTs = lm.Timestamp;
+                }
+            }
+
+            if (firstTs != null && lastTs != null
+                && DateTimeOffset.TryParse(firstTs, out var first)
+                && DateTimeOffset.TryParse(lastTs, out var last))
+            {
+                var duration = last - first;
+                if (duration < TimeSpan.Zero) duration = -duration;
+                string timeStr;
+                if (duration.TotalHours >= 1)
+                    timeStr = $"{duration.TotalHours:F1}h";
+                else if (duration.TotalMinutes >= 1)
+                    timeStr = $"{duration.TotalMinutes:F1}m";
+                else
+                    timeStr = $"{duration.TotalSeconds:F1}s";
+                MessagesHeader.Text = $"{count} Messages ({timeStr})";
+                return;
+            }
+        }
+
+        MessagesHeader.Text = $"{count} Messages";
     }
 
     private void RefreshDetailList(UserMessageItem item)
@@ -383,13 +438,19 @@ public sealed partial class MainWindow : Window
         {
             NoTurnSelected.Visibility = Visibility.Collapsed;
             DetailList.Visibility = Visibility.Visible;
+            ExportLink.IsEnabled = true;
+            PromptLink.IsEnabled = true;
             RefreshDetailList(item);
+            UpdateMessagesHeader(item);
         }
         else
         {
             _detailItems.Clear();
             DetailList.Visibility = Visibility.Collapsed;
             NoTurnSelected.Visibility = Visibility.Visible;
+            ExportLink.IsEnabled = false;
+            PromptLink.IsEnabled = false;
+            UpdateMessagesHeader(null);
             DetailJsonText.Text = "";
             DetailJsonScroller.Visibility = Visibility.Collapsed;
             NoMessageSelected.Visibility = Visibility.Visible;
@@ -430,6 +491,103 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async void ExportLink_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentFilePath == null || _detailItems.Count == 0) return;
+
+        var picker = new FileSavePicker();
+        picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+        picker.FileTypeChoices.Add("Text file", new List<string> { ".txt" });
+        picker.SuggestedFileName = "turn-export";
+
+        // Initialize picker with window handle
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+        var file = await picker.PickSaveFileAsync();
+        if (file == null) return;
+
+        var sb = new StringBuilder();
+
+        // Summary section
+        sb.AppendLine("Summary");
+        sb.AppendLine(new string('-', 100));
+        sb.AppendLine();
+
+        foreach (var detail in _detailItems.Reverse())
+        {
+            var line1 = detail.TypeAndId ?? "";
+
+            // Add token counts right-aligned to 100 chars
+            if (!string.IsNullOrEmpty(detail.TokenIn))
+            {
+                var tokens = $"in:{detail.TokenIn}  cacheRd:{detail.TokenCacheRead}  cacheWr:{detail.TokenCacheWrite}  out:{detail.TokenOut}";
+                var padding = Math.Max(1, 100 - line1.Length - tokens.Length);
+                line1 += new string(' ', padding) + tokens;
+            }
+            if (line1.Length > 100) line1 = line1[..100];
+            sb.AppendLine(line1);
+
+            if (!string.IsNullOrEmpty(detail.ContentPreview))
+            {
+                var preview = detail.ContentPreview;
+                if (preview.Length > 100) preview = preview[..97] + "...";
+                sb.AppendLine("  " + preview);
+            }
+            if (!string.IsNullOrEmpty(detail.ToolCallPreview))
+            {
+                foreach (var tc in detail.ToolCallPreview.Split('\n'))
+                {
+                    var tcLine = tc;
+                    if (tcLine.Length > 98) tcLine = tcLine[..95] + "...";
+                    sb.AppendLine("  " + tcLine);
+                }
+            }
+            if (!string.IsNullOrEmpty(detail.ThinkingPreview))
+            {
+                var thinking = detail.ThinkingPreview;
+                if (thinking.Length > 98) thinking = thinking[..95] + "...";
+                sb.AppendLine("  [thinking] " + thinking);
+            }
+            sb.AppendLine();
+        }
+
+        // Details section
+        sb.AppendLine();
+        sb.AppendLine("Details");
+        sb.AppendLine(new string('-', 100));
+        sb.AppendLine();
+        sb.AppendLine("[");
+
+        bool first = true;
+        foreach (var detail in _detailItems.Reverse())
+        {
+            if (!first) sb.AppendLine(",");
+            first = false;
+
+            try
+            {
+                var buffer = new byte[detail.ByteLength];
+                using var fs = new FileStream(_currentFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                fs.Seek(detail.ByteOffset, SeekOrigin.Begin);
+                fs.Read(buffer, 0, detail.ByteLength);
+                var raw = Encoding.UTF8.GetString(buffer);
+
+                using var doc = JsonDocument.Parse(raw);
+                sb.Append(JsonSerializer.Serialize(doc, new JsonSerializerOptions { WriteIndented = true }));
+            }
+            catch
+            {
+                sb.Append("  { \"error\": \"could not read\" }");
+            }
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("]");
+
+        await Windows.Storage.FileIO.WriteTextAsync(file, sb.ToString());
+    }
+
     private string LoadPrettyJson(DetailLineItem item)
     {
         try
@@ -446,6 +604,196 @@ public sealed partial class MainWindow : Window
         catch
         {
             return "(error reading JSON)";
+        }
+    }
+
+    private void PromptLink_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentFilePath == null) return;
+        if (MessageList.SelectedItem is not UserMessageItem selectedTurn) return;
+
+        try
+        {
+            // Find the timestamp of the first line in this turn
+            string turnTimestamp = null;
+            var rangeStart = selectedTurn.SubtreeOffset;
+            var rangeEnd = rangeStart + selectedTurn.SubtreeLength;
+            foreach (var lm in _lineMetas)
+            {
+                if (lm.Offset >= rangeStart && lm.Offset < rangeEnd && lm.Timestamp != null)
+                {
+                    turnTimestamp = lm.Timestamp;
+                    break;
+                }
+            }
+            if (turnTimestamp == null) return;
+            if (!DateTimeOffset.TryParse(turnTimestamp, out var turnTs)) return;
+
+            // Find the trajectory sidecar file
+            var dir = Path.GetDirectoryName(_currentFilePath);
+            var baseName = Path.GetFileNameWithoutExtension(_currentFilePath);
+            var trajectoryPath = Path.Combine(dir, baseName + ".trajectory.jsonl");
+            if (!File.Exists(trajectoryPath)) return;
+
+            // Read the trajectory file — it's JSONL (one JSON object per line)
+            string systemPrompt = null;
+            using (var fs = new FileStream(trajectoryPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var reader = new StreamReader(fs))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    try
+                    {
+                        using var lineDoc = JsonDocument.Parse(line);
+                        var entry = lineDoc.RootElement;
+
+                        var type = entry.TryGetProperty("type", out var tp) ? tp.GetString() : null;
+                        if (type != "context.compiled") continue;
+
+                        var ts = entry.TryGetProperty("ts", out var tsProp) ? tsProp.GetString() : null;
+                        if (ts == null || !DateTimeOffset.TryParse(ts, out var entryTs)) continue;
+
+                        if (entryTs <= turnTs)
+                        {
+                            if (entry.TryGetProperty("data", out var data)
+                                && data.TryGetProperty("systemPrompt", out var sp))
+                            {
+                                systemPrompt = sp.GetString();
+                            }
+                        }
+                        else
+                        {
+                            break; // past our turn, stop
+                        }
+                    }
+                    catch { continue; }
+                }
+            }
+
+            if (string.IsNullOrEmpty(systemPrompt))
+            {
+                systemPrompt = "(No system prompt found for this turn)";
+            }
+
+            var promptWindow = new Window();
+            promptWindow.Title = "System Prompt";
+            promptWindow.Content = new ScrollViewer
+            {
+                Content = BuildMarkdownBlock(systemPrompt),
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            };
+            promptWindow.Activate();
+        }
+        catch { }
+    }
+
+    private static RichTextBlock BuildMarkdownBlock(string markdown)
+    {
+        var rtb = new RichTextBlock
+        {
+            TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap,
+            IsTextSelectionEnabled = true,
+            Padding = new Thickness(16),
+            FontSize = 13
+        };
+
+        var lines = markdown.Split('\n');
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.TrimEnd('\r');
+            var para = new Paragraph();
+
+            // Headings
+            if (line.StartsWith("### "))
+            {
+                para.FontSize = 16;
+                para.Margin = new Thickness(0, 12, 0, 4);
+                AddInlineRuns(para.Inlines, line.Substring(4), isBold: true);
+            }
+            else if (line.StartsWith("## "))
+            {
+                para.FontSize = 18;
+                para.Margin = new Thickness(0, 14, 0, 4);
+                AddInlineRuns(para.Inlines, line.Substring(3), isBold: true);
+            }
+            else if (line.StartsWith("# "))
+            {
+                para.FontSize = 20;
+                para.Margin = new Thickness(0, 16, 0, 4);
+                AddInlineRuns(para.Inlines, line.Substring(2), isBold: true);
+            }
+            else
+            {
+                para.Margin = new Thickness(0, 4, 0, 4);
+                AddInlineRuns(para.Inlines, line, isBold: false);
+            }
+
+            rtb.Blocks.Add(para);
+        }
+
+        return rtb;
+    }
+
+    private static void AddInlineRuns(InlineCollection inlines, string text, bool isBold)
+    {
+        // Process bold (**...**) and italic (*...* or _..._)
+        int i = 0;
+        while (i < text.Length)
+        {
+            // Bold: **...**
+            if (i + 1 < text.Length && text[i] == '*' && text[i + 1] == '*')
+            {
+                var end = text.IndexOf("**", i + 2);
+                if (end > i + 2)
+                {
+                    var run = new Run { Text = text.Substring(i + 2, end - i - 2) };
+                    run.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
+                    inlines.Add(run);
+                    i = end + 2;
+                    continue;
+                }
+            }
+
+            // Italic: *...* (single)
+            if (text[i] == '*' && (i + 1 >= text.Length || text[i + 1] != '*'))
+            {
+                var end = text.IndexOf('*', i + 1);
+                if (end > i + 1)
+                {
+                    var run = new Run { Text = text.Substring(i + 1, end - i - 1) };
+                    run.FontStyle = Windows.UI.Text.FontStyle.Italic;
+                    inlines.Add(run);
+                    i = end + 1;
+                    continue;
+                }
+            }
+
+            // Italic: _..._
+            if (text[i] == '_')
+            {
+                var end = text.IndexOf('_', i + 1);
+                if (end > i + 1)
+                {
+                    var run = new Run { Text = text.Substring(i + 1, end - i - 1) };
+                    run.FontStyle = Windows.UI.Text.FontStyle.Italic;
+                    inlines.Add(run);
+                    i = end + 1;
+                    continue;
+                }
+            }
+
+            // Plain text — accumulate until next marker
+            int next = i + 1;
+            while (next < text.Length && text[next] != '*' && text[next] != '_')
+                next++;
+
+            var plainRun = new Run { Text = text.Substring(i, next - i) };
+            if (isBold)
+                plainRun.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
+            inlines.Add(plainRun);
+            i = next;
         }
     }
 }

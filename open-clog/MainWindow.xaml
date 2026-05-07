@@ -41,12 +41,22 @@
                           SelectionChanged="AgentCombo_SelectionChanged"
                           MinWidth="150"/>
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Text="Session:" VerticalAlignment="Center" FontSize="13" Foreground="Gray"/>
-                <ComboBox x:Name="SessionCombo" FontSize="14" FontWeight="SemiBold"
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Session:" VerticalAlignment="Center" FontSize="13" Foreground="Gray" Margin="0,0,8,0"/>
+                <ComboBox Grid.Row="0" Grid.Column="1" x:Name="SessionCombo" FontSize="14" FontWeight="SemiBold"
                           SelectionChanged="SessionCombo_SelectionChanged"
                           MinWidth="300"/>
-            </StackPanel>
+                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="SessionIdText" FontSize="11" Foreground="Gray"
+                           IsTextSelectionEnabled="True" Margin="0,2,0,0"/>
+            </Grid>
         </StackPanel>
 
         <Grid Grid.Row="2">
@@ -91,8 +101,15 @@
 
                 <!-- Header row with Messages label and token column headers -->
                 <Grid Grid.Row="0" Padding="12,4,20,4">
-                    <TextBlock Text="Messages" FontSize="12" FontWeight="SemiBold" Foreground="Gray"
-                               VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <TextBlock x:Name="MessagesHeader" Text="Messages" FontSize="12" FontWeight="SemiBold" Foreground="Gray"/>
+                        <HyperlinkButton x:Name="ExportLink" Content="[Export," FontSize="11"
+                                         Padding="0,0,0,0" IsEnabled="False"
+                                         Click="ExportLink_Click"/>
+                        <HyperlinkButton x:Name="PromptLink" Content="Prompt]" FontSize="11"
+                                         Padding="0,0,0,0" IsEnabled="False" Margin="-4,0,0,0"
+                                         Click="PromptLink_Click"/>
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="0">
                         <TextBlock Text="tokens:" FontSize="10" Foreground="Gray" Margin="0,0,4,0"/>
                         <TextBlock Text="in" FontSize="10" Foreground="Gray" Width="60" TextAlignment="Right"/>
@@ -130,12 +147,7 @@
                                                TextTrimming="CharacterEllipsis"
                                                MaxLines="10"
                                                Visibility="{x:Bind HasToolCall}"/>
-                                    <TextBlock Text="{x:Bind ThinkingPreview}"
-                                               FontSize="11" Foreground="MediumPurple"
-                                               FontStyle="Italic"
-                                               TextTrimming="CharacterEllipsis"
-                                               MaxLines="2"
-                                               Visibility="{x:Bind HasThinking}"/>
+
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Spacing="0">
                                     <TextBlock Text="{x:Bind TokenIn}" FontSize="11" Width="60" TextAlignment="Right" Foreground="Gray"/>
